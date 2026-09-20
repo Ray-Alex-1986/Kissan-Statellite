@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output
+client/dist/
+server/dist/
+
+# Environment files (keep the example template)
+.env
+.env.*
+!.env.example
+
+# Runtime photo uploads (the API recreates this folder on boot)
+server/uploads/
+
+# Logs and OS cruft
+npm-debug.log*
+*.log
+.DS_Store
+Thumbs.db

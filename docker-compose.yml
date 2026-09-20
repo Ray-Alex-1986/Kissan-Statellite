@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: farmportal-db
+    environment:
+      POSTGRES_USER: farmportal
+      POSTGRES_PASSWORD: farmportal
+      POSTGRES_DB: farmportal
+    ports:
+      - "5432:5432"
+    volumes:
+      - farmportal-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U farmportal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  server:
+    build: ./server
+    container_name: farmportal-server
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DB_DIALECT: postgres
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: farmportal
+      DB_USER: farmportal
+      DB_PASSWORD: farmportal
+      JWT_SECRET: change-me-in-production
+      # Satellite / soil providers: mock | sentinel-hub | soilgrids
+      SATELLITE_PROVIDER: mock
+      SOIL_PROVIDER: mock
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./server/uploads:/app/uploads
+
+volumes:
+  farmportal-pgdata:
