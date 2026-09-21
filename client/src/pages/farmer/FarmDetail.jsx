@@ -75,13 +75,18 @@ export default function FarmDetail() {
     api.get('/crop-masters?limit=200').then((r) => setCropCatalog(r.data.data)).catch(() => {});
   }, [load]);
 
-  // First visit to a farm with no satellite data yet: run the analysis
-  // automatically so the farmer always gets feedback on the current status.
+  // Load the feedback report derived from the stored 2-year history on every
+  // visit (cheap — no provider call). Farms with no satellite rows at all get
+  // one full provider analysis to bootstrap the history.
   useEffect(() => {
     if (analysis) return;
-    api.get(`/satellite/farms/${id}/ndvi`)
+    api.get(`/satellite/farms/${id}/analysis`)
+      .then((r) => { if (r.data?.ndvi || r.data?.ndmi) setAnalysis(r.data); })
+      .catch(() => {});
+    api.get(`/satellite/farms/${id}/indices`)
       .then((r) => {
-        if (r.data.count > 0) return;
+        const idx = r.data.indices || {};
+        if ((idx.NDVI?.length || 0) > 0) return;
         return api.post(`/satellite/farms/${id}/analyze`).then((a) => setAnalysis(a.data));
       })
       .catch(() => {});

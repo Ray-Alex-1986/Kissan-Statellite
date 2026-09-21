@@ -6,6 +6,9 @@ const STATUS = {
 
 const TREND = { rising: '▲ rising', falling: '▼ falling', stable: '► stable' };
 
+const WATER_COLOR = { adequate: '#2e7d32', moderate: '#ef6c00', low: '#c62828' };
+const VIGOR_COLOR = { strong: '#2e7d32', moderate: '#ef6c00', low: '#c62828' };
+
 /**
  * Plain-language satellite feedback for a farm, from POST /satellite/farms/:id/analyze.
  * Covers the farm's current position, vegetation status (NDVI), alerts and topsoil.
@@ -21,6 +24,11 @@ export default function SatelliteFeedback({ report }) {
         <h3>Satellite feedback — current farm status</h3>
         <span className="muted">analysed {new Date(report.generatedAt).toLocaleString()}</span>
       </div>
+      {report.window && (
+        <p className="muted">
+          Based on {report.window.days} days of Sentinel-2 passes ({report.window.from} → {report.window.to}, {report.window.passes} cloud-screened readings).
+        </p>
+      )}
 
       <div className="feedback-grid">
         <div>
@@ -38,6 +46,24 @@ export default function SatelliteFeedback({ report }) {
               last reading {ndvi.latest.date} · peak {ndvi.peak?.value.toFixed(2)} ({ndvi.peak?.date}) · low {ndvi.low?.value.toFixed(2)} ({ndvi.low?.date})
             </p>
             <p className="hint">{st.advice}</p>
+          </div>
+        )}
+
+        {report.ndmi && (
+          <div>
+            <h4>Canopy water (Sentinel-2 NDMI)</h4>
+            <p className="feedback-value" style={{ color: WATER_COLOR[report.ndmi.status] }}>{report.ndmi.latest.value.toFixed(2)}</p>
+            <p style={{ color: WATER_COLOR[report.ndmi.status] }}><strong>{report.ndmi.label}</strong> · {TREND[report.ndmi.trend]}</p>
+            <p className="muted">last reading {report.ndmi.latest.date}</p>
+          </div>
+        )}
+
+        {report.ndre && (
+          <div>
+            <h4>Red edge / canopy N (Sentinel-2 NDRE)</h4>
+            <p className="feedback-value" style={{ color: VIGOR_COLOR[report.ndre.status] }}>{report.ndre.latest.value.toFixed(2)}</p>
+            <p style={{ color: VIGOR_COLOR[report.ndre.status] }}><strong>{report.ndre.label}</strong> · {TREND[report.ndre.trend]}</p>
+            <p className="muted">last reading {report.ndre.latest.date}</p>
           </div>
         )}
 

@@ -4,7 +4,7 @@ import { sequelize } from '../config/db.js';
 import { Farm, Observation, SoilProfile, Alert, CropSeason } from '../models/index.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncWrap } from '../middleware/error.js';
-import { getNdviSeries, detectNdviAlerts, providerStatus } from '../services/sentinelService.js';
+import { getIndexSeries, detectIndexAlerts, providerStatus } from '../services/sentinelService.js';
 import { getSoilProfile } from '../services/soilgridsService.js';
 import {
   commodityCatalog,
@@ -17,7 +17,10 @@ import {
 
 const router = Router();
 
-const WINDOW_DAYS = 150;
+// Satellite analysis is based on a 2-year history of Sentinel-2 passes
+// (spec: 24-month analytics window).
+const WINDOW_DAYS = 730;
+const HISTORY_DAYS = 730;
 const DEFAULT_COMPARE_DAYS = 30; // fallback gap between "before" and "after"
 
 function lastWindow() {
@@ -59,13 +62,34 @@ function parseBbox(value) {
   return parts;
 }
 
-// Fetch fresh NDVI from the provider, persist observations, raise alerts.
-async function refreshNdvi(farm, from, to) {
-  const series = await getNdviSeries(farm, from, to);
+// Fetch fresh NDVI+NDMI+NDRE from the provider and persist one observation
+// row per (date, indexType): NDVI rows keep ndviMean/Min/Max for the existing
+// dashboards; NDMI/NDRE rows carry medianValue/stdDevValue (spec D20-D22).
+async function refreshIndices(farm, from, to) {
+  const series = await getIndexSeries(farm, from, to);
   for (const s of series) {
-    await Observation.upsert({ farmId: farm.id, source: 'sentinel-2', ...s });
+    const base = {
+      farmId: farm.id,
+      source: 'sentinel-2',
+      date: s.date,
+      cloudPct: s.cloudPct,
+      dataCoveragePct: s.dataCoveragePct,
+    };
+    await Promise.all([
+      Observation.upsert({
+        ...base, indexType: 'NDVI',
+        ndviMean: s.ndviMean, ndviMin: s.ndviMin, ndviMax: s.ndviMax,
+        medianValue: s.ndviMean, stdDevValue: s.ndviStd,
+      }),
+      s.ndmiMean != null && Observation.upsert({
+        ...base, indexType: 'NDMI', medianValue: s.ndmiMean, stdDevValue: s.ndmiStd,
+      }),
+      s.ndreMean != null && Observation.upsert({
+        ...base, indexType: 'NDRE', medianValue: s.ndreMean, stdDevValue: s.ndreStd,
+      }),
+    ]);
   }
-  for (const a of detectNdviAlerts(farm.id, series)) {
+  for (const a of detectIndexAlerts(farm.id, series)) {
     await Alert.findOrCreate({
       where: { farmId: a.farmId, type: a.type, message: a.message },
       defaults: a,
@@ -80,8 +104,47 @@ function classifyNdvi(v) {
   return { status: 'stressed', label: 'Low vegetation — possible stress' };
 }
 
-// Plain-language feedback report from the analysed series.
-function buildFeedback(farm, series, alerts, soilProfile) {
+function classifyNdmi(v) {
+  if (v >= 0.3) return { status: 'adequate', label: 'Adequate canopy water' };
+  if (v >= 0.1) return { status: 'moderate', label: 'Moderate canopy water' };
+  return { status: 'low', label: 'Low canopy water — possible water stress' };
+}
+
+function classifyNdre(v) {
+  if (v >= 0.3) return { status: 'strong', label: 'Strong canopy vigour (red edge)' };
+  if (v >= 0.15) return { status: 'moderate', label: 'Moderate red-edge response' };
+  return { status: 'low', label: 'Low red-edge response — check crop nutrition' };
+}
+
+// Generic latest/peak/low/trend summary for one value key of the series.
+function summarizeIndex(series, key) {
+  const points = series.filter((s) => s[key] != null);
+  const latest = points[points.length - 1] || null;
+  if (!latest) return null;
+  let peak = null;
+  let low = null;
+  for (const p of points) {
+    if (!peak || p[key] > peak[key]) peak = p;
+    if (!low || p[key] < low[key]) low = p;
+  }
+  let trend = 'stable';
+  if (points.length >= 2) {
+    const delta = latest[key] - points[points.length - 2][key];
+    if (delta > 0.03) trend = 'rising';
+    else if (delta < -0.03) trend = 'falling';
+  }
+  return {
+    latest: { date: latest.date, value: latest[key] },
+    peak: peak ? { date: peak.date, value: peak[key] } : null,
+    low: low ? { date: low.date, value: low[key] } : null,
+    trend,
+  };
+}
+
+// Plain-language feedback report from the analysed series. Based on the full
+// 2-year window: NDMI (canopy water) and NDRE (red edge / canopy N) sit
+// alongside NDVI so the analysis reflects water and nutritional status too.
+function buildFeedback(farm, series, alerts, soilProfile, window) {
   const points = series.filter((s) => s.ndviMean != null);
   const latest = points[points.length - 1] || null;
   let peak = null;
@@ -97,10 +160,15 @@ function buildFeedback(farm, series, alerts, soilProfile) {
     else if (delta < -0.03) trend = 'falling';
   }
   const cls = latest ? classifyNdvi(latest.ndviMean) : null;
+  const ndmi = summarizeIndex(series, 'ndmiMean');
+  const ndre = summarizeIndex(series, 'ndreMean');
   const topsoil = soilProfile?.layers?.['0-5cm'] || null;
   return {
     farmId: farm.id,
     generatedAt: new Date().toISOString(),
+    window: window
+      ? { from: window.from, to: window.to, days: window.days, passes: points.length }
+      : null,
     position: {
       lat: farm.centroidLat,
       lon: farm.centroidLon,
@@ -117,6 +185,8 @@ function buildFeedback(farm, series, alerts, soilProfile) {
           label: cls.label,
         }
       : null,
+    ndmi: ndmi ? { ...ndmi, ...classifyNdmi(ndmi.latest.value) } : null,
+    ndre: ndre ? { ...ndre, ...classifyNdre(ndre.latest.value) } : null,
     alerts: alerts.map((a) => ({ type: a.type, severity: a.severity, message: a.message })),
     soil: topsoil
       ? {
@@ -363,14 +433,47 @@ router.get(
     const from = req.query.from || new Date(Date.now() - 150 * 864e5).toISOString().slice(0, 10);
 
     if (req.query.refresh === 'true') {
-      await refreshNdvi(farm, from, to);
+      await refreshIndices(farm, from, to);
     }
 
     const observations = await Observation.findAll({
-      where: { farmId: farm.id, date: { [Op.between]: [from, to] } },
+      where: { farmId: farm.id, date: { [Op.between]: [from, to] }, indexType: 'NDVI' },
       order: [['date', 'ASC']],
     });
     res.json({ farmId: farm.id, from, to, count: observations.length, observations });
+  })
+);
+
+// Full vegetation-index history for a farm: NDVI, NDMI and NDRE (red edge),
+// each a 2-year (730-day) Sentinel-2 series by default. ?refresh=true pulls
+// fresh data from the configured provider and persists it per index first.
+router.get(
+  '/farms/:id/indices',
+  requireAuth,
+  asyncWrap(async (req, res) => {
+    const farm = await Farm.findByPk(req.params.id, {
+      include: [{ model: CropSeason, as: 'cropSeasons', order: [['sowingDate', 'DESC']], limit: 1 }],
+    });
+    if (!farm) return res.status(404).json({ error: 'Farm not found' });
+    if (req.user.role === 'farmer' && farm.ownerId !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const to = isoOr(req.query.to, todayIso());
+    const from = isoOr(req.query.from, addDaysIso(to, -HISTORY_DAYS));
+
+    if (req.query.refresh === 'true') {
+      await refreshIndices(farm, from, to);
+    }
+
+    const rows = await Observation.findAll({
+      where: { farmId: farm.id, date: { [Op.between]: [from, to] } },
+      order: [['date', 'ASC']],
+    });
+    const indices = { NDVI: [], NDMI: [], NDRE: [] };
+    for (const r of rows) {
+      if (indices[r.indexType]) indices[r.indexType].push(r);
+    }
+    res.json({ farmId: farm.id, from, to, count: rows.length, indices });
   })
 );
 
@@ -400,6 +503,46 @@ router.post(
 
 export default router;
 
+// Feedback report derived from the STORED 2-year observation history — no
+// provider call, so the farmer dashboard can render it on every page load.
+// POST /farms/:id/analyze remains the explicit "refresh from satellite".
+router.get(
+  '/farms/:id/analysis',
+  requireAuth,
+  asyncWrap(async (req, res) => {
+    const farm = await Farm.findByPk(req.params.id, {
+      include: [{ model: CropSeason, as: 'cropSeasons', order: [['sowingDate', 'DESC']], limit: 1 }],
+    });
+    if (!farm) return res.status(404).json({ error: 'Farm not found' });
+    if (req.user.role === 'farmer' && farm.ownerId !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const to = isoOr(req.query.to, todayIso());
+    const from = isoOr(req.query.from, addDaysIso(to, -HISTORY_DAYS));
+
+    const rows = await Observation.findAll({
+      where: { farmId: farm.id, date: { [Op.between]: [from, to] } },
+      order: [['date', 'ASC']],
+    });
+    // Re-merge per-index rows into one series item per pass date.
+    const byDate = new Map();
+    for (const r of rows) {
+      const e = byDate.get(r.date) || { date: r.date };
+      if (r.indexType === 'NDVI') e.ndviMean = r.ndviMean;
+      else if (r.indexType === 'NDMI') e.ndmiMean = r.medianValue;
+      else if (r.indexType === 'NDRE') e.ndreMean = r.medianValue;
+      byDate.set(r.date, e);
+    }
+    const series = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+
+    const [openAlerts, soilProfile] = await Promise.all([
+      Alert.findAll({ where: { farmId: farm.id, status: 'open' }, order: [['createdAt', 'DESC']] }),
+      SoilProfile.findOne({ where: { farmId: farm.id }, order: [['fetchedAt', 'DESC']] }),
+    ]);
+    res.json(buildFeedback(farm, series, openAlerts, soilProfile, { from, to, days: HISTORY_DAYS }));
+  })
+);
+
 // Full satellite analysis for a farm: fresh NDVI + alerts + soil profile,
 // returned as a plain-language feedback report for the farmer.
 router.post(
@@ -415,7 +558,7 @@ router.post(
     }
 
     const { from, to } = lastWindow();
-    const series = await refreshNdvi(farm, from, to);
+    const series = await refreshIndices(farm, from, to);
 
     let soilProfile = null;
     try {
@@ -439,6 +582,6 @@ router.post(
       where: { farmId: farm.id, status: 'open' },
       order: [['createdAt', 'DESC']],
     });
-    res.json(buildFeedback(farm, series, openAlerts, soilProfile));
+    res.json(buildFeedback(farm, series, openAlerts, soilProfile, { from, to, days: WINDOW_DAYS }));
   })
 );
