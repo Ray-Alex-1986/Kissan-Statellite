@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createCrudRouter } from '../../utils/crudFactory.js';
-import { User, Farm, CropSeason, FieldPhoto, SoilProfile, SoilTest, Observation, Alert } from '../../models/index.js';
+import { User, Farm, CropSeason, FieldPhoto, SoilProfile, SoilTest, Observation, Alert, CropMaster, FertilizerApplication, IrrigationRecord, FarmActivity, AdvisoryRule, Advisory } from '../../models/index.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { asyncWrap } from '../../middleware/error.js';
 import { centroidOf, polygonAreaHa, isValidPolygon } from '../../utils/geo.js';
@@ -81,6 +81,52 @@ export const apiRouters = [
     model: SoilProfile,
     resource: 'soil-profiles',
     roles: { read: ['farmer', 'officer', 'admin'], write: ['admin'] },
+  }),
+
+  createCrudRouter({
+    model: CropMaster,
+    resource: 'crop-masters',
+    searchable: ['name', 'code', 'category'],
+    roles: { read: ['farmer', 'officer', 'admin'], write: ['officer', 'admin'] },
+  }),
+
+  createCrudRouter({
+    model: FertilizerApplication,
+    resource: 'fertilizer-applications',
+    farmField: 'farmId',
+    searchable: ['fertilizer', 'growthStage'],
+    roles: { read: ['farmer', 'officer', 'admin'], write: ['farmer', 'officer', 'admin'] },
+  }),
+
+  createCrudRouter({
+    model: IrrigationRecord,
+    resource: 'irrigation-records',
+    farmField: 'farmId',
+    searchable: ['method', 'waterSource'],
+    roles: { read: ['farmer', 'officer', 'admin'], write: ['farmer', 'officer', 'admin'] },
+  }),
+
+  createCrudRouter({
+    model: FarmActivity,
+    resource: 'farm-activities',
+    farmField: 'farmId',
+    searchable: ['type', 'description'],
+    roles: { read: ['farmer', 'officer', 'admin'], write: ['farmer', 'officer', 'admin'] },
+  }),
+
+  createCrudRouter({
+    model: AdvisoryRule,
+    resource: 'advisory-rules',
+    searchable: ['name', 'category', 'cropName'],
+    roles: { read: ['officer', 'admin'], write: ['officer', 'admin'] },
+  }),
+
+  createCrudRouter({
+    model: Advisory,
+    resource: 'advisories',
+    farmField: 'farmId',
+    searchable: ['category', 'severity', 'status'],
+    roles: { read: ['farmer', 'officer', 'admin'], write: ['officer', 'admin'] },
   }),
 ];
 

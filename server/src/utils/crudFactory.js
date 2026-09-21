@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
+import { Farm, AuditLog } from '../models/index.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncWrap } from '../middleware/error.js';
 
@@ -26,6 +27,7 @@ export function createCrudRouter(opts) {
     resource,
     roles = { read: ['farmer', 'officer', 'admin'], write: ['farmer', 'officer', 'admin'] },
     ownerField = null,
+    farmField = null,
     searchable = [],
     allowDeleteRoles = ['admin'],
     hooks = {},
@@ -40,6 +42,43 @@ export function createCrudRouter(opts) {
     return true;
   };
 
+  // Farmers may only touch records tied to farms they own (spec M50).
+  const assertFarmAccess = async (req, farmId) => {
+    if (!farmId || req.user.role !== 'farmer') return;
+    const farm = await Farm.findByPk(Number(farmId), { attributes: ['id', 'ownerId'] });
+    if (!farm || farm.ownerId !== req.user.id) {
+      const err = new Error('Forbidden: farm is not registered against your account');
+      err.status = 403;
+      throw err;
+    }
+  };
+
+  const assertRowAccess = async (req, row) => {
+    if (!canAccessRow(req, row)) {
+      const err = new Error('Forbidden');
+      err.status = 403;
+      throw err;
+    }
+    if (farmField) await assertFarmAccess(req, row[farmField]);
+  };
+
+  // Audit trail for every mutation (spec O54). Fire-and-forget: an audit
+  // failure must never fail the audited action.
+  const writeAudit = (req, action, row, detail = null) => {
+    Promise.resolve(
+      AuditLog.create({
+        userId: req.user?.id ?? null,
+        userRole: req.user?.role ?? null,
+        action,
+        resource,
+        resourceId: row?.id ?? null,
+        farmId: row?.farmId ?? (resource === 'farms' ? row?.id ?? null : null),
+        detail,
+        ip: req.ip ?? null,
+      })
+    ).catch(() => {});
+  };
+
   router.get(
     '/',
     requireAuth,
@@ -48,6 +87,9 @@ export function createCrudRouter(opts) {
       const { page = 1, limit = 50, q, ...filters } = req.query;
       const where = { ...filters };
       if (ownerField && req.user.role === 'farmer') where[ownerField] = req.user.id;
+      if (farmField && req.user.role === 'farmer') {
+        where[farmField] = { [Op.in]: literal(`(SELECT id FROM farms WHERE "ownerId" = ${Number(req.user.id)})`) };
+      }
       if (q && searchable.length) {
         where[Op.or] = searchable.map((f) => ({ [f]: { [Op.iLike]: `%${q}%` } }));
       }
@@ -71,7 +113,7 @@ export function createCrudRouter(opts) {
         ...(opts.include ? { include: opts.include(req) } : {}),
       });
       if (!row) return res.status(404).json({ error: 'Not found' });
-      if (!canAccessRow(req, row)) return res.status(403).json({ error: 'Forbidden' });
+      await assertRowAccess(req, row);
       res.json(row);
     })
   );
@@ -83,9 +125,11 @@ export function createCrudRouter(opts) {
     asyncWrap(async (req, res) => {
       const body = { ...req.body };
       if (ownerField && req.user.role === 'farmer') body[ownerField] = req.user.id;
+      if (farmField) await assertFarmAccess(req, body[farmField]);
       if (hooks.beforeCreate) hooks.beforeCreate(req, body);
       const row = await model.create(body);
       if (hooks.afterCreate) await hooks.afterCreate(req, row);
+      writeAudit(req, 'create', row, { keys: Object.keys(req.body).slice(0, 25) });
       res.status(201).json(row);
     })
   );
@@ -97,9 +141,13 @@ export function createCrudRouter(opts) {
     asyncWrap(async (req, res) => {
       const row = await model.findByPk(req.params.id);
       if (!row) return res.status(404).json({ error: 'Not found' });
-      if (!canAccessRow(req, row)) return res.status(403).json({ error: 'Forbidden' });
+      await assertRowAccess(req, row);
+      if (farmField && req.body[farmField] && Number(req.body[farmField]) !== Number(row[farmField])) {
+        await assertFarmAccess(req, req.body[farmField]);
+      }
       if (hooks.beforeUpdate) hooks.beforeUpdate(req, row, req.body);
       await row.update(req.body);
+      writeAudit(req, 'update', row, { keys: Object.keys(req.body).slice(0, 25) });
       res.json(row);
     })
   );
@@ -112,6 +160,7 @@ export function createCrudRouter(opts) {
       const row = await model.findByPk(req.params.id);
       if (!row) return res.status(404).json({ error: 'Not found' });
       await row.destroy();
+      writeAudit(req, 'delete', row);
       res.json({ deleted: true });
     })
   );

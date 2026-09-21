@@ -1,5 +1,6 @@
 import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
+import { runMigrations } from '../utils/migrate.js';
 
 dotenv.config();
 
@@ -23,5 +24,6 @@ export async function initDb() {
     await sequelize.query('CREATE EXTENSION IF NOT EXISTS postgis;');
   }
   await sequelize.sync({ alter: true });
+  await runMigrations(sequelize);
   console.log(`[db] connected (${dialect})`);
 }

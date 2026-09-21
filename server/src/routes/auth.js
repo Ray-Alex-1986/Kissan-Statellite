@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { User } from '../models/index.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { asyncWrap } from '../middleware/error.js';
+import { audit } from '../utils/audit.js';
 
 const router = Router();
 
@@ -23,6 +24,7 @@ router.post('/register', asyncWrap(async (req, res) => {
     name, email: String(email).toLowerCase(), passwordHash: bcrypt.hashSync(password, 10),
     role: 'farmer', phone, cnic, district, province,
   });
+  audit(req, { action: 'register', resource: 'auth', resourceId: user.id });
   res.status(201).json({ token: signToken(user), user: publicUser(user) });
 }));
 
@@ -32,6 +34,7 @@ router.post('/login', asyncWrap(async (req, res) => {
   if (!user || !bcrypt.compareSync(password || '', user.passwordHash)) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
+  audit(req, { action: 'login', resource: 'auth', resourceId: user.id });
   res.json({ token: signToken(user), user: publicUser(user) });
 }));
 
