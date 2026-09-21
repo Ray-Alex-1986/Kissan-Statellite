@@ -150,3 +150,23 @@ table.grid th { background: var(--green-100); }
 .legend-grid { display: flex; flex-wrap: wrap; gap: .1rem .9rem; align-items: center; }
 .legend-swatch { display: inline-block; width: 14px; height: 10px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
 .notice { background: #fff8e1; border: 1px solid #ffe082; color: #7a5b00; border-radius: 8px; padding: .45rem .7rem; font-size: .82rem; margin: .45rem 0 .2rem; }
+
+/* --- Farm activity timeline (spec H37) --- */
+.timeline { border-left: 2px solid var(--line); margin-left: 6px; }
+.tl-item { position: relative; padding: .45rem 0 .45rem 1rem; }
+.tl-dot { position: absolute; left: -6px; top: .85rem; width: 10px; height: 10px; border-radius: 50%; background: #90a4ae; }
+.tl-dot.tl-green { background: var(--green-700); }
+.tl-dot.tl-teal { background: #00897b; }
+.tl-dot.tl-amber { background: var(--amber); }
+.tl-dot.tl-blue { background: #1e88e5; }
+.tl-dot.tl-purple { background: #8e24aa; }
+.tl-dot.tl-orange { background: #f4511e; }
+.tl-date { font-variant-numeric: tabular-nums; margin-right: .5rem; }
+.tl-desc { margin: .15rem 0 0; font-size: .85rem; }
+.badge.tl-teal { background: #e0f2f1; color: #00695c; }
+.badge.tl-blue { background: #e3f2fd; color: #1565c0; }
+.badge.tl-purple { background: #f3e5f5; color: #6a1b9a; }
+.badge.tl-orange { background: #fbe9e7; color: #d84315; }
+.badge.tl-green { background: var(--green-100); color: var(--green-900); }
+.badge.tl-amber { background: #fff3e0; color: var(--amber); }
+.badge.tl-gray { background: #eceff1; color: #607d8b; }
