@@ -25,11 +25,20 @@ export const Farm = sequelize.define(
       defaultValue: 'canal',
     },
     boundary: { type: DataTypes.JSONB, allowNull: false },
+    // PostGIS mirror of `boundary`, declared on the model so sync({alter})
+    // preserves it — the original raw-migration column was silently dropped
+    // when Sequelize rebuilt the table. Excluded from default reads via
+    // defaultScope to keep API payloads lean (JSONB boundary is authoritative).
+    geom: { type: DataTypes.GEOMETRY('GEOMETRY', 4326) },
     centroidLat: { type: DataTypes.FLOAT, allowNull: false },
     centroidLon: { type: DataTypes.FLOAT, allowNull: false },
   },
   {
     tableName: 'farms',
+    defaultScope: {
+      attributes: { exclude: ['geom'] },
+    },
+    indexes: [{ name: 'farms_geom_gix', fields: ['geom'], using: 'GIST' }],
     hooks: {
       // Human-readable registry code (spec A1): F-00001, F-00002, ...
       afterCreate: async (farm) => {
