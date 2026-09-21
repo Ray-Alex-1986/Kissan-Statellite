@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createCrudRouter } from '../../utils/crudFactory.js';
-import { User, Farm, CropSeason, FieldPhoto, SoilProfile, SoilTest, Observation, Alert, CropMaster, FertilizerApplication, IrrigationRecord, FarmActivity, AdvisoryRule, Advisory } from '../../models/index.js';
+import { User, Farm, CropSeason, FieldPhoto, SoilProfile, SoilTest, Observation, Alert, CropMaster, FertilizerApplication, IrrigationRecord, FarmActivity, AdvisoryRule, Advisory, WeatherObservation, WeatherForecast } from '../../models/index.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { asyncWrap } from '../../middleware/error.js';
 import { centroidOf, polygonAreaHa, isValidPolygon } from '../../utils/geo.js';
@@ -127,6 +127,23 @@ export const apiRouters = [
     farmField: 'farmId',
     searchable: ['category', 'severity', 'status'],
     roles: { read: ['farmer', 'officer', 'admin'], write: ['officer', 'admin'] },
+  }),
+
+  // Weather cache tables (spec B-13): written by the weather service; readable
+  // by officers/admin for monitoring and dashboard use.
+  createCrudRouter({
+    model: WeatherObservation,
+    resource: 'weather-observations',
+    farmField: 'farmId',
+    searchable: ['provider'],
+    roles: { read: ['officer', 'admin'], write: ['officer', 'admin'] },
+  }),
+  createCrudRouter({
+    model: WeatherForecast,
+    resource: 'weather-forecasts',
+    farmField: 'farmId',
+    searchable: ['provider'],
+    roles: { read: ['officer', 'admin'], write: ['officer', 'admin'] },
   }),
 ];
 

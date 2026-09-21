@@ -35,6 +35,11 @@ services:
       # Satellite / soil providers: mock | sentinel-hub | soilgrids
       SATELLITE_PROVIDER: mock
       SOIL_PROVIDER: mock
+      # Weather: open-meteo (keyless) | mock
+      WEATHER_PROVIDER: open-meteo
+      OPEN_METEO_BASE_URL: https://api.open-meteo.com
+      WEATHER_CURRENT_CACHE_MINUTES: 30
+      WEATHER_FORECAST_CACHE_MINUTES: 60
     ports:
       - "5000:5000"
     volumes:

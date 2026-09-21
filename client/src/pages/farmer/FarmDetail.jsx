@@ -9,6 +9,7 @@ import SatelliteFeedback from '../../components/SatelliteFeedback.jsx';
 import FertilizerPanel from '../../components/FertilizerPanel.jsx';
 import IrrigationPanel from '../../components/IrrigationPanel.jsx';
 import FarmTimeline from '../../components/FarmTimeline.jsx';
+import WeatherCard from '../../components/WeatherCard.jsx';
 
 const addDays = (iso, days) =>
   iso ? new Date(Date.parse(`${iso}T00:00:00Z`) + days * 864e5).toISOString().slice(0, 10) : '';
@@ -172,6 +173,7 @@ export default function FarmDetail() {
       {farm.alerts?.filter((a) => a.status === 'open').map((a) => (
         <div key={a.id} className={`alert-banner ${a.severity}`}>{a.message}</div>
       ))}
+      <WeatherCard farmId={farm.id} />
       <SatelliteFeedback report={analysis} />
 
       <div className="two-col">

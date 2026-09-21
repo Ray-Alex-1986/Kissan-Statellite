@@ -170,3 +170,14 @@ table.grid th { background: var(--green-100); }
 .badge.tl-green { background: var(--green-100); color: var(--green-900); }
 .badge.tl-amber { background: #fff3e0; color: var(--amber); }
 .badge.tl-gray { background: #eceff1; color: #607d8b; }
+
+/* --- Weather card (Phase 3, spec H-38) --- */
+.wx-current { display: flex; align-items: center; gap: 1rem; margin: .3rem 0 .6rem; }
+.wx-temp { font-size: 2.6rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.wx-icon { font-size: 2.2rem; }
+.wx-meta { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .7rem; }
+.wx-forecast { display: grid; grid-template-columns: repeat(7, 1fr); gap: .4rem; text-align: center; }
+.wx-day { border: 1px solid var(--line); border-radius: 8px; padding: .35rem .15rem; font-size: .78rem; }
+.wx-day .hi { font-weight: 700; font-variant-numeric: tabular-nums; }
+.wx-day .lo { color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) { .wx-forecast { grid-template-columns: repeat(4, 1fr); } }
