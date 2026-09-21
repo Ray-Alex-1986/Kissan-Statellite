@@ -40,5 +40,15 @@ services:
     volumes:
       - ./server/uploads:/app/uploads
 
+  # Built React app served by nginx; proxies /api and /uploads to the server
+  # service. Host port 5173 matches the former Vite dev-server URL.
+  client:
+    build: ./client
+    container_name: farmportal-client
+    depends_on:
+      - server
+    ports:
+      - "5173:80"
+
 volumes:
   farmportal-pgdata:
