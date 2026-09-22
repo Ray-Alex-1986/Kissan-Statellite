@@ -10,6 +10,8 @@ import FertilizerPanel from '../../components/FertilizerPanel.jsx';
 import IrrigationPanel from '../../components/IrrigationPanel.jsx';
 import FarmTimeline from '../../components/FarmTimeline.jsx';
 import WeatherCard from '../../components/WeatherCard.jsx';
+import AdvisoryPanel from '../../components/AdvisoryPanel.jsx';
+import CropAnalyticsPanel from '../../components/CropAnalyticsPanel.jsx';
 
 const addDays = (iso, days) =>
   iso ? new Date(Date.parse(`${iso}T00:00:00Z`) + days * 864e5).toISOString().slice(0, 10) : '';
@@ -179,6 +181,8 @@ export default function FarmDetail() {
         <div key={a.id} className={`alert-banner ${a.severity}`}>{a.message}</div>
       ))}
       <WeatherCard farmId={farm.id} />
+      <AdvisoryPanel farmId={farm.id} onChanged={() => setTick((t) => t + 1)} />
+      <CropAnalyticsPanel farmId={farm.id} refreshKey={tick} />
       <SatelliteFeedback report={analysis} />
 
       <div className="two-col">

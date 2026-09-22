@@ -4,6 +4,7 @@ import { User, Farm, CropSeason, FieldPhoto, SoilProfile, SoilTest, Observation,
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { asyncWrap } from '../../middleware/error.js';
 import { centroidOf, polygonAreaHa, isValidPolygon } from '../../utils/geo.js';
+import { validateRuleDefinition } from '../../services/advisoryService.js';
 
 // ---------------------------------------------------------------------------
 // Auto-generated REST APIs.
@@ -119,6 +120,17 @@ export const apiRouters = [
     resource: 'advisory-rules',
     searchable: ['name', 'category', 'cropName'],
     roles: { read: ['officer', 'admin'], write: ['officer', 'admin'] },
+    hooks: {
+      // Rules are only useful if the engine can evaluate them — unknown
+      // condition keys, operators and message placeholders are rejected at
+      // save time instead of silently never matching (spec G-33).
+      beforeCreate(req, body) {
+        validateRuleDefinition(body);
+      },
+      beforeUpdate(req, row, body) {
+        validateRuleDefinition({ ...row.toJSON(), ...body });
+      },
+    },
   }),
 
   createCrudRouter({

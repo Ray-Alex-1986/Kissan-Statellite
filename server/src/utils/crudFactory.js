@@ -88,7 +88,16 @@ export function createCrudRouter(opts) {
       const where = { ...filters };
       if (ownerField && req.user.role === 'farmer') where[ownerField] = req.user.id;
       if (farmField && req.user.role === 'farmer') {
-        where[farmField] = { [Op.in]: literal(`(SELECT id FROM farms WHERE "ownerId" = ${Number(req.user.id)})`) };
+        const ownedFarms = { [Op.in]: literal(`(SELECT id FROM farms WHERE "ownerId" = ${Number(req.user.id)})`) };
+        // An explicit ?farmId= filter must still be honoured — intersect it with
+        // the ownership scope instead of letting it be silently overwritten.
+        if (where[farmField] != null) {
+          const explicit = where[farmField];
+          delete where[farmField];
+          where[Op.and] = [...(where[Op.and] ? [where[Op.and]] : []), { [farmField]: explicit }, { [farmField]: ownedFarms }];
+        } else {
+          where[farmField] = ownedFarms;
+        }
       }
       if (q && searchable.length) {
         where[Op.or] = searchable.map((f) => ({ [f]: { [Op.iLike]: `%${q}%` } }));

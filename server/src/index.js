@@ -10,6 +10,8 @@ import { apiRouters, farmSummaryRouter, mountApi } from './routes/api/index.js';
 import authRouter from './routes/auth.js';
 import satelliteRouter from './routes/satellite.js';
 import weatherRouter from './routes/weather.js';
+import analyticsRouter from './routes/analytics.js';
+import advisoriesRouter from './routes/advisories.js';
 import adminRouter from './routes/admin.js';
 import metaRouter from './routes/meta.js';
 import uploadsRouter from './routes/uploads.js';
@@ -30,6 +32,8 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'farm-por
 app.use('/api/auth', authRouter);
 app.use('/api/satellite', satelliteRouter);
 app.use('/api/weather', weatherRouter);
+app.use('/api/analytics', analyticsRouter);
+app.use('/api/advisories', advisoriesRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/meta', metaRouter);
 app.use('/api/field-photos/upload', uploadsRouter);

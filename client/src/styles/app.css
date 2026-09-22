@@ -189,3 +189,28 @@ table.grid th { background: var(--green-100); }
 .wx-day .hi { font-weight: 700; font-variant-numeric: tabular-nums; }
 .wx-day .lo { color: var(--muted); font-variant-numeric: tabular-nums; }
 @media (max-width: 700px) { .wx-forecast { grid-template-columns: repeat(4, 1fr); } }
+
+/* --- Crop analytics + advisories (Phases 5/6, spec Parts E–G) --- */
+.badge.information { background: #e3f2fd; color: #1565c0; }
+.badge.normal { background: var(--green-100); color: var(--green-900); }
+.badge.attention { background: #fff8e1; color: #9a6b00; }
+.badge.acknowledged { background: #eceff1; color: #455a64; }
+
+.analytics-verdict { border-radius: 8px; padding: .55rem .8rem; margin: .3rem 0 .6rem; font-size: .9rem; background: var(--green-100); }
+.analytics-verdict.warning { background: #fff8e1; }
+.analytics-verdict.critical { background: #ffebee; }
+.verdict-reasons { margin: .3rem 0 0; padding-left: 1.1rem; font-size: .85rem; }
+.verdict-reasons li { margin: .1rem 0; }
+
+.stage-line { display: flex; align-items: center; gap: .5rem; margin: .3rem 0 .1rem; flex-wrap: wrap; }
+.stage-bar { display: inline-block; width: 140px; height: 8px; border-radius: 4px; background: #eceff1; overflow: hidden; }
+.stage-fill { display: block; height: 100%; background: var(--green-700); border-radius: 4px; }
+.stage-fill.harvested { background: #607d8b; }
+
+.analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .6rem; margin: .5rem 0; }
+.analytics-tile { border: 1px solid var(--line); border-radius: 8px; padding: .5rem .7rem; }
+.analytics-tile h4 { margin: 0 0 .2rem; font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.analytics-tile .val { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.analytics-tile p { margin: .15rem 0; }
+
+.adv-msg { margin: .25rem 0; font-size: .9rem; }

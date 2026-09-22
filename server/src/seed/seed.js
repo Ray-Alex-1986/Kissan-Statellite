@@ -52,8 +52,9 @@ const CROP_MASTER = [
   ['BERSEEM', 'Fodder (Berseem)', 'Trifolium alexandrinum', 'Fodder', 'Rabi', '10-01', '11-15', '12-01', '04-30', 150, 6, 'kg/acre', 'Multiple cuts (5–7); leave the last cut for seed.'],
 ];
 
-// Demo advisory rules (spec Part G-33). The Phase 7 engine evaluates these
-// declarative conditions; admins can edit them without code changes.
+// Demo advisory rules (spec Part G-33). The Phase 6 advisory engine evaluates
+// these declarative conditions; admins can edit them without code changes.
+// Existing rules are never overwritten — seeding only adds the missing ones.
 const ADVISORY_RULES = [
   {
     name: 'Moisture stress indicator (NDMI decline)',
@@ -83,6 +84,49 @@ const ADVISORY_RULES = [
     severity: 'information',
     conditions: { windowStart: '10-15', windowEnd: '11-30' },
     messageTemplate: 'The typical sowing window for Wheat in your region is 15 October – 30 November. Timely sowing strongly affects yield.',
+  },
+  {
+    name: 'Late sowing — adjust seed rate',
+    cropName: 'Wheat',
+    category: 'seed_rate',
+    severity: 'attention',
+    conditions: { sowingWindowStatus: 'late', daysSinceSowingMax: 60 },
+    messageTemplate: 'The Wheat crop was sown on {sowingDate}, about {daysOffset} days {earlyLate} ({windowStart} – {windowEnd}). For late-sown wheat, a higher seed rate and early-maturing varieties are standard practice — confirm the right rate with your local agriculture office.',
+  },
+  {
+    name: 'Vegetative stage — split nitrogen timing',
+    category: 'fertilizer',
+    severity: 'normal',
+    conditions: { growthStage: 'Vegetative', daysSinceSowingMin: 21, daysSinceSowingMax: 45, cropStatus: 'growing' },
+    messageTemplate: '{cropName} is in vegetative growth (about day {daysSinceSowing} after sowing). If a split nitrogen application is planned, this is the typical window for it — confirm dose and timing with your local agriculture office.',
+  },
+  {
+    name: 'Irrigation at reproductive stage',
+    category: 'irrigation',
+    severity: 'normal',
+    conditions: { growthStage: ['Reproductive', 'Maturity'], cropStatus: 'growing' },
+    messageTemplate: '{cropName} is at the {stage} stage (about day {daysSinceSowing} after sowing). Moisture stress in this period affects grain formation — keep soil moisture adequate and check field moisture before the next irrigation.',
+  },
+  {
+    name: 'Rain forecast — review irrigation plan',
+    category: 'rainfall',
+    severity: 'information',
+    conditions: { weather: { field: 'precipitation', operator: '>=', value: 10, withinDays: 3 } },
+    messageTemplate: 'About {weatherValue} mm of rain is forecast within the next {withinDays} days. Consider adjusting or postponing the next irrigation to avoid waterlogging and nutrient leaching.',
+  },
+  {
+    name: 'Dry spell — moisture stress watch',
+    category: 'moisture_stress',
+    severity: 'attention',
+    conditions: { index: 'NDMI', operator: '<', value: 0.1, minObservations: 2, weather: { field: 'precipitation', operator: '<=', value: 2, withinDays: 7 } },
+    messageTemplate: 'Canopy water is low (NDMI {indexValue}) and only about {weatherValue} mm of rain is forecast over the next {withinDays} days. If the crop is actively growing, review the irrigation schedule — confirm field moisture levels before acting.',
+  },
+  {
+    name: 'Harvest approaching — plan field operations',
+    category: 'harvesting',
+    severity: 'attention',
+    conditions: { daysToHarvestMax: 10, cropStatus: 'growing' },
+    messageTemplate: '{cropName} is approaching its expected harvest date ({expectedHarvestDate}, {daysToHarvestLabel}). Plan harvesting, labour and storage, and check grain moisture before combining.',
   },
 ];
 
